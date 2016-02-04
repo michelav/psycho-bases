@@ -1,0 +1,36 @@
+logging:
+    version: 1
+    disable_existing_loggers: False
+    formatters:
+      brief:
+        format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+      precise:
+        format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        datefmt: '%Y-%m-%d %H:%M:%S'
+    handlers:
+      console:
+        class : logging.StreamHandler
+        formatter: brief
+        level   : INFO
+        stream  : ext://sys.stdout
+      file:
+        class : logging.handlers.RotatingFileHandler
+        formatter: precise
+        level   : DEBUG
+        filename: /tmp/psycho-bases/logs/app.log
+        maxBytes: 1024000
+        backupCount: 3
+    root:
+        level: DEBUG
+        handlers: [console, file]
+app:
+    xml_dir: /tmp/psycho-bases
+    dirs:
+        - /tmp/psycho-bases
+        - /tmp/psycho-bases/logs
+    bases:
+        - !extractor
+            name: 'lilacs'
+            type: !!python/name:extractors.DefaultExtractor
+            url: 'http://lilacs.bvsalud.org/?output=${output}&from=${count}&q=${qstr} AND db:("${base}")'
+            format: xml
