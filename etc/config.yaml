@@ -11,7 +11,7 @@ logging:
       console:
         class : logging.StreamHandler
         formatter: brief
-        level   : INFO
+        level   : DEBUG
         stream  : ext://sys.stdout
       file:
         class : logging.handlers.RotatingFileHandler
@@ -32,5 +32,16 @@ app:
         - !extractor
             name: 'lilacs'
             type: !!python/name:extractors.DefaultExtractor
-            url: 'http://lilacs.bvsalud.org/?output=${output}&from=${count}&q=${qstr} AND db:("${base}")'
-            format: xml
+            url: >
+                http://pesquisa.bvsalud.org/portal/?output=${output}&from=${from}&count=${count}&q=${qstr}
+                AND year_cluster:(${interval}) AND (instance:"${instance}")
+                AND fulltext:("${fulltext}") AND db:("${db}") AND limit:("${limit}")
+                AND type:("${type}")
+            output: xml
+            options:
+                db: LILACS
+                count: 102
+                limit: adolescent
+                instance: regional
+                fulltext: 1
+                type: article
