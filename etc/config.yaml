@@ -45,3 +45,13 @@ app:
                 instance: regional
                 fulltext: 1
                 type: article
+        - !extractor
+            name: 'scielo'
+            type: !!python/name:extractors.DefaultExtractor
+            url: >
+                http://search.scielo.org/?output=${output}&from=${from}&count=${count}&q=${qstr}
+                AND year_cluster:(${interval})
+            output: xml
+            options:
+                db: SCIELO
+                count: 102
