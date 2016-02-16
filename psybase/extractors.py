@@ -44,41 +44,38 @@ class DefaultContentHandler(ContentHandler):
             try:
                 abstract = self._doc['resumo_es']
             except KeyError:
-                abstract = self._doc['resumo_en']
+                try:
+                    abstract = self._doc['resumo_en']
+                except KeyError:
+                    abstract = ''
+                    logger.debug('Doc %s: Abstract not found.', self._count)
+
         return abstract
 
 
     def _save_doc(self):
-        self._count = self._count + 1
         logger.debug('** Saving document %s **', self._count)
         title = self._get_title()
-        logger.debug('Titulo => {}'.format(title))
         abstract = self._get_abstract()
         saved_doc = OrderedDict()
-        # saved_doc['base'] = self._name
-        # saved_doc['descritor'] = self._descriptor
         saved_doc['titulo'] = title
         saved_doc['resumo'] = abstract
-        saved_doc['autores'] = self._doc['autores']
-        logger.debug('Autores => {}'.format(self._doc['autores']))
-        saved_doc['ano'] = self._doc['ano'][0:4]
-        logger.debug('Ano => {}'.format(self._doc['ano']))
-        saved_doc['lingua'] = self._doc['lingua']
-        saved_doc['pais'] = self._doc['pais']
+        saved_doc['autores'] = '; '.join(self._doc.get('autores', ''))
+        saved_doc['ano'] = self._doc.get('ano', '     ')[0:4]
+        saved_doc['lingua'] = self._doc.get('lingua', '')
+        saved_doc['pais'] = self._doc.get('pais', [''])[0]
         saved_doc['status'] = 'aberto'
         saved_doc['categoria'] = ''
         saved_doc['exclusao'] = ''
 
-        self._articles[title] = saved_doc
+        self._articles.append(saved_doc)
         # if is_debug_enabled:
-        logger.debug('Articles saved: %s', len(list(self._articles.keys())))
+        logger.debug('Article %s Id %s saved.\nTitulo: %s \n', self._count, self._doc['id'], saved_doc['titulo'])
 
 
     def _doc_tag(self, attributes):
-        if self._doc:
-            self._save_doc()
-        self._title = None
-        self._doc = {}
+        self._count = self._count + 1
+        logger.debug('** Reading document %s **', self._count)
 
     def _result_tag(self, attributes):
         self._found = int(attributes[(None, 'numFound')])
@@ -95,11 +92,10 @@ class DefaultContentHandler(ContentHandler):
         except KeyError:
             pass
 
-
     def __init__(self):
         self._current = None
         self._found = 0
-        self._articles = {}
+        self._articles = []
         self._title = None
         self._doc = {}
         self._tags = {'result': self._result_tag,
@@ -108,9 +104,8 @@ class DefaultContentHandler(ContentHandler):
         self._attrs = {'ab_en': 'resumo_en', 'ab_es': 'resumo_es',
                         'ab_pt': 'resumo_pt', 'au': 'autores', 'cp': 'pais',
                         'da': 'ano', 'la': 'lingua', 'ti_en': 'titulo_en',
-                        'ti_pt': 'titulo_pt', 'ti_es': 'titulo_es'}
+                        'ti_pt': 'titulo_pt', 'ti_es': 'titulo_es', 'id': 'id'}
 
-        # if is_debug_enabled:
         self._count = 0
 
     def startElementNS(self, name, qname, attributes):
@@ -120,20 +115,33 @@ class DefaultContentHandler(ContentHandler):
         except KeyError:
             self._current = None
             pass
+    def endElementNS(self, name, qname):
+        uri, localname = name
+        if localname == 'doc':
+            self._save_doc()
+            self._title = None
+            self._doc = {}
 
     def characters(self, data):
         if self._current == 'autores':
             try:
-                # if is_debug_enabled:
-                # logger.debug('Storing %s => %s', self._current, data)
                 authors = self._doc['autores']
                 authors.append(data)
             except KeyError:
                 self._doc[self._current] = [data]
+        elif self._current == 'pais':
+            try:
+                paises = self._doc['pais']
+                print('Paises: {}'.format(paises))
+                paises.append(data)
+            except KeyError:
+                print('Pais: {}'.format(data))
+                self._doc[self._current] = [data]
         elif self._current:
-            # if is_debug_enabled:
-            # logger.debug('Storing %s => %s', self._current, data)
             self._doc[self._current] = data
+            logger.debug('%s => %s', self._current, data)
+            self._current = None
+
 
 class DefaultExtractor(object):
 
@@ -159,7 +167,6 @@ class DefaultExtractor(object):
         self._name = name
         self._url = url
         self._descriptor = None
-        # self._base = options['db']
         self._options = options
         self._output = None
 
@@ -180,7 +187,4 @@ class DefaultExtractor(object):
         root = etree.XML(str.encode(response.text, 'UTF-8'))
         handler = DefaultContentHandler()
         saxify(root, handler)
-        # if is_debug_enabled:
-        logger.debug('Query used: %s\nFound: %s', query, handler.found)
-        logger.debug('Len: %s', len(handler.articles))
         return handler.articles

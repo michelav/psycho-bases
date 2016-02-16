@@ -2,9 +2,16 @@
 import yaml
 import argparse
 from logging import config
+import logging
 from extractors import DefaultExtractor
 from pathlib import Path
 import csv
+
+""" Module-wide logger """
+logger = logging.getLogger(__name__)
+
+""" Fast pass for isEnableFor(DEBUG). """
+is_debug_enabled = logger.isEnabledFor(logging.DEBUG)
 
 def extractor_constructor(loader, node):
     params = loader.construct_mapping(node)
@@ -41,46 +48,41 @@ def prepare_bases(bases):
 def extract(bases):
     bases_map = prepare_bases(bases)
     queried_bases =  args.bases if args.bases else bases_map.keys()
-    print(queried_bases)
-    articles = []
+    articles = {}
     for base in queried_bases:
         extractor = bases_map[base]
         queried = extractor.query(args.query, args.interval)
-        print('Queried: {}'.format(len(queried)))
-        articles.append(queried)
-    print('Articles: {}'.format(len(articles)))
+        articles[base] = queried
+    logger.debug('Base %s buscada para o descritor %s. Resultado: %s artigos.',
+        base, args.query, len(queried))
     return articles
 
 def write_csv(docs):
+    headers = ['base', 'descritor', 'titulo', 'resumo', 'autores', 'ano',
+               'lingua', 'pais', 'status', 'categoria', 'exclusao']
     with open(args.arquivo, 'w') as csvfile:
-        fieldnames = list(docs[0].keys())
-        writer = csv.DictWriter(csvfile, delimiter='|', fieldnames=fieldnames)
+        writer = csv.DictWriter(csvfile, delimiter='|', fieldnames=headers)
+        writer.writeheader()
         for doc in docs:
             writer.writerow(doc)
 
-def process_articles(articles):
+def process_articles(bases):
     processed_articles = []
-    temp_base = {}
+    titles = set()
 
     # Copying first dict
-    for k, doc in articles[0].items():
-        print(doc)
-        processed_articles.append(doc)
-
-    # Finding Duplicates
-    temp_base.update(articles[0])
-    for i in range(1, len(articles)):
-        for title, doc in articles[i]:
-            try:
-                temp_base[title]
+    for base, articles in bases.items():
+        logger.debug('=== Processing base %s. ===', base)
+        for doc in articles:
+            doc['base'] = base
+            doc['descritor'] = args.query
+            if doc['titulo'] in titles: # Duplicated doc
                 doc['status'] = 'duplicado'
-            except KeyError:
-                pass
-            finally:
-                print("adicionando ao que vai ser salvo")
-                processed_articles.append(doc)
-        temp_base.update(articles[i])
-    print('Articles: {}'.format(len(processed_articles)))
+            else:
+                titles.add(doc['titulo'])
+            processed_articles.append(doc)
+        logger.debug('=== Base %s finished. ===', base)
+
     write_csv(processed_articles)
 
 def setup_dirs(dirs):
